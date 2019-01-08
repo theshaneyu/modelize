@@ -286,7 +286,7 @@ def main(_):
             sess.run(optimizer, feed_dict=feed_dict)
             
             # 存model
-            save_path = saver.save(sess, 'model/model.ckpt')
+            save_path = saver.save(sess, 'model_gpu/model.ckpt')
 
             # # print some extra information once reach the evaluation frequency
             # if step % EVAL_FREQUENCY == 0:
