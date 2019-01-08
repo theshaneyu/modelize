@@ -259,6 +259,9 @@ def main(_):
                 predictions[begin:, :] = batch_predictions[begin - size:, :]
         return predictions
 
+    # to save the model
+    saver = tf.train.Saver()
+
     # Create a local session to run the training.
     start_time = time.time()
     with tf.Session() as sess:
@@ -266,7 +269,10 @@ def main(_):
         tf.global_variables_initializer().run()
         print('Initialized!')
         # Loop through training steps.
-        for step in xrange(int(num_epochs * train_size) // BATCH_SIZE):
+
+        # for step in xrange(int(num_epochs * train_size) // BATCH_SIZE):
+        for step in range(1):
+
             # Compute the offset of the current minibatch in the data.
             # Note that we could use better randomization across epochs.
             offset = (step * BATCH_SIZE) % (train_size - BATCH_SIZE)
@@ -278,28 +284,33 @@ def main(_):
                                      train_labels_node: batch_labels}
             # Run the optimizer to update weights.
             sess.run(optimizer, feed_dict=feed_dict)
-            # print some extra information once reach the evaluation frequency
-            if step % EVAL_FREQUENCY == 0:
-                # fetch some extra nodes' data
-                l, lr, predictions = sess.run([loss, learning_rate, train_prediction],
-                                                                            feed_dict=feed_dict)
-                elapsed_time = time.time() - start_time
-                start_time = time.time()
-                print('Step %d (epoch %.2f), %.1f ms' %
-                            (step, float(step) * BATCH_SIZE / train_size,
-                            1000 * elapsed_time / EVAL_FREQUENCY))
-                print('Minibatch loss: %.3f, learning rate: %.6f' % (l, lr))
-                print('Minibatch error: %.1f%%' % error_rate(predictions, batch_labels))
-                print('Validation error: %.1f%%' % error_rate(eval_in_batches(validation_data, sess), validation_labels))
-                sys.stdout.flush()
+            
+            # 存model
+            save_path = saver.save(sess, 'model/model.ckpt')
 
-        test_error = error_rate(eval_in_batches(test_data, sess), test_labels)
-        print('Test error: %.1f%%' % test_error)
-        if FLAGS.self_test:
-            print('test_error', test_error)
-            assert test_error == 0.0, 'expected 0.0 test_error, got %.2f' % (
-                    test_error,)
-    subprocess.run(['rm', '-rf', './data/'])
+            # # print some extra information once reach the evaluation frequency
+            # if step % EVAL_FREQUENCY == 0:
+            #     # fetch some extra nodes' data
+            #     l, lr, predictions = sess.run([loss, learning_rate, train_prediction],
+            #                                                                 feed_dict=feed_dict)
+            #     elapsed_time = time.time() - start_time
+            #     start_time = time.time()
+            #     print('Step %d (epoch %.2f), %.1f ms' %
+            #                 (step, float(step) * BATCH_SIZE / train_size,
+            #                 1000 * elapsed_time / EVAL_FREQUENCY))
+            #     print('Minibatch loss: %.3f, learning rate: %.6f' % (l, lr))
+            #     print('Minibatch error: %.1f%%' % error_rate(predictions, batch_labels))
+            #     print('Validation error: %.1f%%' % error_rate(eval_in_batches(validation_data, sess), validation_labels))
+            #     sys.stdout.flush()
+
+        # test_error = error_rate(eval_in_batches(test_data, sess), test_labels)
+        # print('Test error: %.1f%%' % test_error)
+        # if FLAGS.self_test:
+        #     print('test_error', test_error)
+        #     assert test_error == 0.0, 'expected 0.0 test_error, got %.2f' % (
+        #             test_error,)
+    
+    # subprocess.run(['rm', '-rf', './data/'])
 
 
 if __name__ == '__main__':
