@@ -1,6 +1,8 @@
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.python.framework import graph_util
+from random import sample
+from time import time
 
 
 
@@ -8,7 +10,7 @@ mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
 
 
 def train():
-    X = tf.placeholder(tf.float32, [None, 784])
+    X = tf.placeholder(tf.float32, [None, 784], name='input_node')
     y_true = tf.placeholder(tf.float32, [None, 10])
     W = tf.Variable(tf.zeros([784, 10]))
     b = tf.Variable(tf.zeros([10]))
@@ -44,26 +46,31 @@ def train():
                 print('Accuracy: ', sess.run(accuracy, feed_dict = {X: mnist.test.images, y_true: mnist.test.labels}))
 
 
-def restore():
+def restore(input_checkpoint, print=False):
+    # X = tf.placeholder(tf.float32, [None, 784])
+    # y_true = tf.placeholder(tf.float32, [None, 10])
+    # W = tf.Variable(tf.zeros([784, 10]))
+    # b = tf.Variable(tf.zeros([10]))
 
-    X = tf.placeholder(tf.float32, [None, 784])
-    y_true = tf.placeholder(tf.float32, [None, 10])
-    W = tf.Variable(tf.zeros([784, 10]))
-    b = tf.Variable(tf.zeros([10]))
+    # y = tf.nn.softmax(tf.matmul(X, W) + b)
 
-    y = tf.nn.softmax(tf.matmul(X, W) + b)
-
+    saver = tf.train.import_meta_graph(input_checkpoint + '.meta', clear_devices=True)
+    
     with tf.Session() as sess:
-        saver = tf.train.Saver()
-        saver.restore(sess, 'model/model.ckpt')
-
-        correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_true, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        print('Accuracy: ', sess.run(accuracy, feed_dict = {X: mnist.test.images, y_true: mnist.test.labels}))
+        # saver = tf.train.Saver()
+        saver.restore(sess, input_checkpoint)
+        
+        input_image_tensor = sess.graph.get_tensor_by_name("input_node:0")
+        output_tensor_name = sess.graph.get_tensor_by_name("final:0")
+        
+        output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
+    if print:
+        print_ten_prediction(output)
 
 
 def freeze_graph(input_checkpoint, output_graph):
-    """函数freeze_graph中，最重要的就是要确定“指定输出的节点名称”，这个节点名称必须是原模型中存在的节点，对于freeze操作，我们需要定义输出结点的名字。
+    """[讀取ckpt檔，輸出pb檔]
+    函数freeze_graph中，最重要的就是要确定“指定输出的节点名称”，这个节点名称必须是原模型中存在的节点，对于freeze操作，我们需要定义输出结点的名字。
     因为网络其实是比较复杂的，定义了输出结点的名字，那么freeze的时候就只把输出该结点所需要的子图都固化下来，其他无关的就舍弃掉。
     因为我们freeze模型的目的是接下来做预测。所以，output_node_names一般是网络模型最后一层输出的节点名称，或者说就是我们预测的目标。
     
@@ -72,21 +79,14 @@ def freeze_graph(input_checkpoint, output_graph):
         output_graph {[str]} -- [輸出的pb檔]
     """
 
-    # # 建模型
-    # X = tf.placeholder(tf.float32, [None, 784])
-    # y_true = tf.placeholder(tf.float32, [None, 10])
-    # W = tf.Variable(tf.zeros([784, 10]))
-    # b = tf.Variable(tf.zeros([10]))
-    # y = tf.nn.softmax(tf.matmul(X, W) + b, name='final')
-
     saver = tf.train.import_meta_graph(input_checkpoint + '.meta', clear_devices=True)
 
     with tf.Session() as sess:
         saver.restore(sess, input_checkpoint)
+        
         # 用convert_variables_to_constants將模型模型持久化，這個函數需指定需要固定的節點名稱，
         # 以mnist為例，需要固定的節點只有一個，就是最後一層softmax，
         # convert_variables_to_constants會自動把得到這個節點數值所需要的節點都固定。
-
         output_graph_def = graph_util.convert_variables_to_constants(
                     sess=sess,
                     input_graph_def=sess.graph_def,
@@ -97,7 +97,7 @@ def freeze_graph(input_checkpoint, output_graph):
         print("%d ops in the final graph." % len(output_graph_def.node)) #得到当前图有几个操作节点
     
 
-def load_pb_file(pb_file_path):
+def load_pb_file(pb_file_path, print=False):
     with tf.Graph().as_default():
         output_graph_def = tf.GraphDef()
         with open(pb_file_path, "rb") as f:
@@ -108,31 +108,44 @@ def load_pb_file(pb_file_path):
         
         # for item in sess.graph.get_operations():
         #     print(item.name)
-            
-            # 定义输入的张量名称,对应网络结构的输入张量
-            # input:0作为输入图像,keep_prob:0作为dropout的参数,测试时值为1,is_training:0训练参数
-            input_image_tensor = sess.graph.get_tensor_by_name("Placeholder:0")
+
+            # 定義輸入的tensor名稱
+            input_image_tensor = sess.graph.get_tensor_by_name("input_node:0")
 
             # 定义输出的张量名称
             output_tensor_name = sess.graph.get_tensor_by_name("final:0")
             
-            # correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_true, 1))
-            # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-            output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
-            
-            for n in range(10):
-                print('[正確]')
-                print(mnist.test.labels[n].tolist().index(1))
-                print('[預測]')
-                print(output[n].tolist().index(float(max(output[n]))))
-                print('-----------------------')
-                # break
-            
-            # score = tf.nn.softmax(out, name='pre')
-            # class_id = tf.argmax(score, 1)
-            # print "pre class_id:{}".format(sess.run(class_id))
-        
+            output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})    
+    if print:
+        print_ten_prediction(output)
+    
+def evaluate_run_time(ckpt_file, pb_file):
+    start = time()
+    restore(ckpt_file)
+    end = time()
+    print('ckpt檔花', end - start)
+
+    start = time()
+    load_pb_file(pb_file)
+    end = time()
+    print('pb檔花', end - start)
+
+
+def print_ten_prediction(output):
+    for n in sample(range(10000), 10):
+        print('[正確]')
+        print(mnist.test.labels[n].tolist().index(1))
+        print('[預測]')
+        print(output[n].tolist().index(float(max(output[n]))))
+        print('-----------------------')
 
 if __name__ == '__main__':
+    # train()
+
     # freeze_graph('model/model.ckpt', 'model_pb/test1.pb')
-    load_pb_file('./model_pb/test1.pb')
+    # freeze_graph('model_cnn/model.ckpt', 'model_cnn_pb/test1.pb')
+    
+    # restore('model/model.ckpt', print=True)
+    # load_pb_file('model_pb/test1.pb', print=True)
+
+    evaluate_run_time('model/model.ckpt', './model_pb/test1.pb')
