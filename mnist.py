@@ -4,7 +4,7 @@ from tensorflow.python.framework import graph_util
 
 
 
-# mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
 
 
 def train():
@@ -107,31 +107,30 @@ def load_pb_file(pb_file_path):
             sess.run(tf.global_variables_initializer())
         
         # for item in sess.graph.get_operations():
-        #     print(item.values())
-
-
-
+        #     print(item.name)
+            
             # 定义输入的张量名称,对应网络结构的输入张量
             # input:0作为输入图像,keep_prob:0作为dropout的参数,测试时值为1,is_training:0训练参数
-            input_image_tensor = sess.graph.get_tensor_by_name("input:0")
-            input_keep_prob_tensor = sess.graph.get_tensor_by_name("keep_prob:0")
-            input_is_training_tensor = sess.graph.get_tensor_by_name("is_training:0")
+            input_image_tensor = sess.graph.get_tensor_by_name("Placeholder:0")
 
             # 定义输出的张量名称
-            output_tensor_name = sess.graph.get_tensor_by_name("InceptionV3/Logits/SpatialSqueeze:0")
-
-            # 读取测试图片
-            im=read_image(image_path,resize_height,resize_width,normalization=True)
-            im=im[np.newaxis,:]
-            # 测试读出来的模型是否正确，注意这里传入的是输出和输入节点的tensor的名字，不是操作节点的名字
-            # out=sess.run("InceptionV3/Logits/SpatialSqueeze:0", feed_dict={'input:0': im,'keep_prob:0':1.0,'is_training:0':False})
-            out=sess.run(output_tensor_name, feed_dict={input_image_tensor: im,
-                                                        input_keep_prob_tensor:1.0,
-                                                        input_is_training_tensor:False})
-            print("out:{}".format(out))
-            score = tf.nn.softmax(out, name='pre')
-            class_id = tf.argmax(score, 1)
-            print "pre class_id:{}".format(sess.run(class_id))
+            output_tensor_name = sess.graph.get_tensor_by_name("final:0")
+            
+            # correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_true, 1))
+            # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
+            
+            for n in range(10):
+                print('[正確]')
+                print(mnist.test.labels[n].tolist().index(1))
+                print('[預測]')
+                print(output[n].tolist().index(float(max(output[n]))))
+                print('-----------------------')
+                # break
+            
+            # score = tf.nn.softmax(out, name='pre')
+            # class_id = tf.argmax(score, 1)
+            # print "pre class_id:{}".format(sess.run(class_id))
         
 
 if __name__ == '__main__':
