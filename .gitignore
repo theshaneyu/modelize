@@ -87,3 +87,4 @@ target/
 /MNIST_data
 export_inference_graph.py
 ckpt_to_pb.sh
+temp*

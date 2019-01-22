@@ -68,9 +68,9 @@ def restore(input_checkpoint, print=False):
         print_ten_prediction(output)
 
 
-def freeze_graph(input_checkpoint, output_graph):
+def save_pb_with_freeze_graph(input_checkpoint, output_graph):
     """[讀取ckpt檔，輸出pb檔]
-    函数freeze_graph中，最重要的就是要确定“指定输出的节点名称”，这个节点名称必须是原模型中存在的节点，对于freeze操作，我们需要定义输出结点的名字。
+    函数save_pb_with_freeze_graph中，最重要的就是要确定“指定输出的节点名称”，这个节点名称必须是原模型中存在的节点，对于freeze操作，我们需要定义输出结点的名字。
     因为网络其实是比较复杂的，定义了输出结点的名字，那么freeze的时候就只把输出该结点所需要的子图都固化下来，其他无关的就舍弃掉。
     因为我们freeze模型的目的是接下来做预测。所以，output_node_names一般是网络模型最后一层输出的节点名称，或者说就是我们预测的目标。
     
@@ -95,6 +95,26 @@ def freeze_graph(input_checkpoint, output_graph):
         with tf.gfile.GFile(output_graph, "wb") as f: #保存模型
             f.write(output_graph_def.SerializeToString()) #序列化输出
         print("%d ops in the final graph." % len(output_graph_def.node)) #得到当前图有几个操作节点
+
+def save_pb_with_builder(input_checkpoint, output_graph):
+    saver = tf.train.Saver()
+
+    with tf.Session() as sess:
+        saver.restore(sess, input_checkpoint)
+
+        builder = tf.saved_model.builder.SavedModelBuilder('./model_pb/using_builder.pb')
+        model_signature = tf.saved_model.signature_def_utils.build_signature_def(
+            inputs={
+                'aocr_input': tf.saved_model.utils.build_tensor_info(input_node)
+            },
+            outputs={
+                'aocr_output': tf.saved_model.utils.build_tensor_info(final)
+            },
+            method_name='mnist_builder_pb')
+        builder.add_meta_graph_and_variables(sess=sess,
+                                             tags=['aocr'],
+                                             signature_def_map={'aocr_signature': model_signature})
+        builder.save()
     
 
 def load_pb_file(pb_file_path, print=False):
@@ -105,9 +125,6 @@ def load_pb_file(pb_file_path, print=False):
             tf.import_graph_def(output_graph_def, name="")
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-        
-        # for item in sess.graph.get_operations():
-        #     print(item.name)
 
             # 定義輸入的tensor名稱
             input_image_tensor = sess.graph.get_tensor_by_name("input_node:0")
@@ -139,11 +156,16 @@ def print_ten_prediction(output):
         print(output[n].tolist().index(float(max(output[n]))))
         print('-----------------------')
 
+
+    
+
+
+
 if __name__ == '__main__':
     # train()
 
-    # freeze_graph('model/model.ckpt', 'model_pb/test1.pb')
-    # freeze_graph('model_cnn/model.ckpt', 'model_cnn_pb/test1.pb')
+    # save_pb_with_freeze_graph('model/model.ckpt', 'model_pb/test1.pb')
+    # save_pb_with_freeze_graph('model_cnn/model.ckpt', 'model_cnn_pb/test1.pb')
     
     # restore('model/model.ckpt', print=True)
     # load_pb_file('model_pb/test1.pb', print=True)
