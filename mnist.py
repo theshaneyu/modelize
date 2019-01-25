@@ -3,6 +3,8 @@ from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.python.framework import graph_util
 from random import sample
 from time import time
+import os
+import subprocess
 
 
 
@@ -98,25 +100,34 @@ def save_pb_with_freeze_graph(input_checkpoint, output_graph):
 
 def save_pb_with_builder(input_checkpoint, output_path):
 
+    saver = tf.train.import_meta_graph(input_checkpoint + '.meta', clear_devices=True)
+    
     with tf.Session() as sess:
-        saver = tf.train.import_meta_graph(
-            input_checkpoint + '.meta', clear_devices=True)
         
+        saver.restore(sess, input_checkpoint)
+        
+        if os.path.exists(output_path):
+            subprocess.run(['rm', '-rf', output_path])
         builder = tf.saved_model.builder.SavedModelBuilder(output_path)
         
+        
+        input_image_tensor = sess.graph.get_tensor_by_name("input_node:0")
+        output_tensor_name = sess.graph.get_tensor_by_name("final:0")
+        
+
         model_signature = tf.saved_model.signature_def_utils.build_signature_def(
             inputs={
-                'input_node': tf.saved_model.utils.build_tensor_info("input_node:0")
+                'input_node': tf.saved_model.utils.build_tensor_info(input_image_tensor)
             },
             outputs={
-                'output_node': tf.saved_model.utils.build_tensor_info("final:0")
+                'output_node': tf.saved_model.utils.build_tensor_info(output_tensor_name)
             },
             method_name='mnist_builder_pb')
-        saver.restore(sess, input_checkpoint)
+        
 
         builder.add_meta_graph_and_variables(sess=sess,
-                                             tags=['aocr'],
-                                             signature_def_map={'aocr_signature': model_signature})
+                                             tags=['mnist_builder_pb'],
+                                             signature_def_map={'mnist_builder_pb_signature': model_signature})
         builder.save()
     
 
@@ -138,6 +149,17 @@ def load_pb_file(pb_file_path, to_print=False):
             output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
     if to_print:
         print_ten_prediction(output)
+
+def load_pb_produced_by_builder(builder_pb_dir):
+    with tf.Session() as sess:
+        meta_graph_def = tf.saved_model.loader.load(sess, ['mnist_builder_pb'], builder_pb_dir)
+        # sess.run(tf.tables_initializer())
+        sess.run(tf.global_variables_initializer())
+
+        for item in tf.get_default_graph().as_graph_def().node:
+            print(item)
+
+
     
 def evaluate_run_time(ckpt_file, pb_file):
     start = time()
@@ -166,10 +188,12 @@ if __name__ == '__main__':
     # train()
 
     # save_pb_with_freeze_graph('model/model.ckpt', 'model_pb/freeze_graph.pb')
-    save_pb_with_builder('model/model.ckpt', 'model_pb/builder.pb')
+    # save_pb_with_builder('model/model.ckpt', 'model_pb_builder')
     
     # load_ckpt_file('model/model.ckpt', to_print=True)
     # load_pb_file('model_pb/test1.pb', to_print=True)
+    load_pb_produced_by_builder('model_pb_builder')
+
 
 
     
