@@ -43,10 +43,10 @@ def train():
             if step % eval_frequency == 0:
                 correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_true, 1))
                 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-                print('Accuracy: ', sess.run(accuracy, feed_dict = {X: mnist.test.images, y_true: mnist.test.labels}))
+                print('Accuracy: ', sess.run(accuracy, feed_dict={X: mnist.test.images, y_true: mnist.test.labels}))
 
 
-def restore(input_checkpoint, print=False):
+def load_ckpt_file(input_checkpoint, to_print=False):
     # X = tf.placeholder(tf.float32, [None, 784])
     # y_true = tf.placeholder(tf.float32, [None, 10])
     # W = tf.Variable(tf.zeros([784, 10]))
@@ -63,8 +63,9 @@ def restore(input_checkpoint, print=False):
         input_image_tensor = sess.graph.get_tensor_by_name("input_node:0")
         output_tensor_name = sess.graph.get_tensor_by_name("final:0")
         
-        output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
-    if print:
+        output = sess.run(output_tensor_name, feed_dict={
+                          input_image_tensor: mnist.test.images})
+    if to_print:
         print_ten_prediction(output)
 
 
@@ -87,37 +88,39 @@ def save_pb_with_freeze_graph(input_checkpoint, output_graph):
         # 用convert_variables_to_constants將模型模型持久化，這個函數需指定需要固定的節點名稱，
         # 以mnist為例，需要固定的節點只有一個，就是最後一層softmax，
         # convert_variables_to_constants會自動把得到這個節點數值所需要的節點都固定。
-        output_graph_def = graph_util.convert_variables_to_constants(
-                    sess=sess,
-                    input_graph_def=sess.graph_def,
-                    output_node_names=['final']) # 如果有多个输出节点，以逗号隔开
+        output_graph_def = graph_util.convert_variables_to_constants(sess=sess,
+                                                                     input_graph_def=sess.graph_def,
+                                                                     output_node_names=['final']) # 如果有多个输出节点，以逗号隔开
     
         with tf.gfile.GFile(output_graph, "wb") as f: #保存模型
             f.write(output_graph_def.SerializeToString()) #序列化输出
         print("%d ops in the final graph." % len(output_graph_def.node)) #得到当前图有几个操作节点
 
-def save_pb_with_builder(input_checkpoint, output_graph):
-    saver = tf.train.Saver()
+def save_pb_with_builder(input_checkpoint, output_path):
 
     with tf.Session() as sess:
-        saver.restore(sess, input_checkpoint)
-
-        builder = tf.saved_model.builder.SavedModelBuilder('./model_pb/using_builder.pb')
+        saver = tf.train.import_meta_graph(
+            input_checkpoint + '.meta', clear_devices=True)
+        
+        builder = tf.saved_model.builder.SavedModelBuilder(output_path)
+        
         model_signature = tf.saved_model.signature_def_utils.build_signature_def(
             inputs={
-                'aocr_input': tf.saved_model.utils.build_tensor_info(input_node)
+                'input_node': tf.saved_model.utils.build_tensor_info("input_node:0")
             },
             outputs={
-                'aocr_output': tf.saved_model.utils.build_tensor_info(final)
+                'output_node': tf.saved_model.utils.build_tensor_info("final:0")
             },
             method_name='mnist_builder_pb')
+        saver.restore(sess, input_checkpoint)
+
         builder.add_meta_graph_and_variables(sess=sess,
                                              tags=['aocr'],
                                              signature_def_map={'aocr_signature': model_signature})
         builder.save()
     
 
-def load_pb_file(pb_file_path, print=False):
+def load_pb_file(pb_file_path, to_print=False):
     with tf.Graph().as_default():
         output_graph_def = tf.GraphDef()
         with open(pb_file_path, "rb") as f:
@@ -126,19 +129,19 @@ def load_pb_file(pb_file_path, print=False):
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
 
-            # 定義輸入的tensor名稱
+            # 定義輸入的tensor名稱（input tensor是placeholder）
             input_image_tensor = sess.graph.get_tensor_by_name("input_node:0")
 
-            # 定义输出的张量名称
+            # 定義输出的tensor名稱
             output_tensor_name = sess.graph.get_tensor_by_name("final:0")
             
-            output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})    
-    if print:
+            output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
+    if to_print:
         print_ten_prediction(output)
     
 def evaluate_run_time(ckpt_file, pb_file):
     start = time()
-    restore(ckpt_file)
+    load_ckpt_file(ckpt_file)
     end = time()
     print('ckpt檔花', end - start)
 
@@ -157,17 +160,21 @@ def print_ten_prediction(output):
         print('-----------------------')
 
 
-    
-
 
 
 if __name__ == '__main__':
     # train()
 
-    # save_pb_with_freeze_graph('model/model.ckpt', 'model_pb/test1.pb')
-    # save_pb_with_freeze_graph('model_cnn/model.ckpt', 'model_cnn_pb/test1.pb')
+    # save_pb_with_freeze_graph('model/model.ckpt', 'model_pb/freeze_graph.pb')
+    save_pb_with_builder('model/model.ckpt', 'model_pb/builder.pb')
     
-    # restore('model/model.ckpt', print=True)
-    # load_pb_file('model_pb/test1.pb', print=True)
+    # load_ckpt_file('model/model.ckpt', to_print=True)
+    # load_pb_file('model_pb/test1.pb', to_print=True)
 
-    evaluate_run_time('model/model.ckpt', './model_pb/test1.pb')
+
+    
+    
+    
+    # evaluate_run_time('model/model.ckpt', './model_pb/test1.pb')
+
+    
