@@ -150,14 +150,25 @@ def load_pb_file(pb_file_path, to_print=False):
     if to_print:
         print_ten_prediction(output)
 
-def load_pb_produced_by_builder(builder_pb_dir):
+def load_pb_produced_by_builder(builder_pb_dir, to_print=False):
     with tf.Session() as sess:
         meta_graph_def = tf.saved_model.loader.load(sess, ['mnist_builder_pb'], builder_pb_dir)
-        # sess.run(tf.tables_initializer())
-        sess.run(tf.global_variables_initializer())
+        sess.run(tf.tables_initializer())
+        # sess.run(tf.global_variables_initializer())
 
-        for item in tf.get_default_graph().as_graph_def().node:
-            print(item)
+        # for item in tf.get_default_graph().as_graph_def().node:
+        #     print(item.name)
+
+        input_placeholder = sess.graph.get_tensor_by_name('input_node:0')
+        output_softmax = sess.graph.get_tensor_by_name("final:0")
+
+        output = sess.run(output_softmax, feed_dict={input_placeholder: mnist.test.images})
+    if to_print:
+        print_ten_prediction(output)
+
+
+
+
 
 
     
@@ -174,7 +185,8 @@ def evaluate_run_time(ckpt_file, pb_file):
 
 
 def print_ten_prediction(output):
-    for n in sample(range(10000), 10):
+    # for n in sample(range(10000), 10):
+    for n in range(5):
         print('[正確]')
         print(mnist.test.labels[n].tolist().index(1))
         print('[預測]')
@@ -192,7 +204,7 @@ if __name__ == '__main__':
     
     # load_ckpt_file('model/model.ckpt', to_print=True)
     # load_pb_file('model_pb/test1.pb', to_print=True)
-    load_pb_produced_by_builder('model_pb_builder')
+    load_pb_produced_by_builder('model_pb_builder', to_print=True)
 
 
 
