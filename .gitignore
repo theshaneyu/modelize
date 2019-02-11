@@ -89,3 +89,8 @@ export_inference_graph.py
 ckpt_to_pb.sh
 temp*
 .vscode
+nets
+preprocessing
+datasets
+pics
+/big_ckpt
