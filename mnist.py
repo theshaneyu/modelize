@@ -47,30 +47,6 @@ def train():
                 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
                 print('Accuracy: ', sess.run(accuracy, feed_dict={X: mnist.test.images, y_true: mnist.test.labels}))
 
-
-def load_ckpt_file(input_checkpoint, to_print=False):
-    # X = tf.placeholder(tf.float32, [None, 784])
-    # y_true = tf.placeholder(tf.float32, [None, 10])
-    # W = tf.Variable(tf.zeros([784, 10]))
-    # b = tf.Variable(tf.zeros([10]))
-
-    # y = tf.nn.softmax(tf.matmul(X, W) + b)
-
-    saver = tf.train.import_meta_graph(input_checkpoint + '.meta', clear_devices=True)
-    
-    with tf.Session() as sess:
-        # saver = tf.train.Saver()
-        saver.restore(sess, input_checkpoint)
-        
-        input_image_tensor = sess.graph.get_tensor_by_name("input_node:0")
-        output_tensor_name = sess.graph.get_tensor_by_name("final:0")
-        
-        output = sess.run(output_tensor_name, feed_dict={
-                          input_image_tensor: mnist.test.images})
-    if to_print:
-        print_ten_prediction(output)
-
-
 def save_pb_with_freeze_graph(input_checkpoint, output_graph):
     """[讀取ckpt檔，輸出pb檔]
     函数save_pb_with_freeze_graph中，最重要的就是要确定“指定输出的节点名称”，这个节点名称必须是原模型中存在的节点，对于freeze操作，我们需要定义输出结点的名字。
@@ -130,6 +106,19 @@ def save_pb_with_builder(input_checkpoint, output_path):
                                              signature_def_map={'mnist_builder_pb_signature': model_signature})
         builder.save()
     
+def load_ckpt_file(input_checkpoint, to_print=False):
+    saver = tf.train.import_meta_graph(input_checkpoint + '.meta', clear_devices=True)
+    
+    with tf.Session() as sess:
+        saver.restore(sess, input_checkpoint)
+        
+        input_image_tensor = sess.graph.get_tensor_by_name("input_node:0")
+        output_tensor_name = sess.graph.get_tensor_by_name("final:0")
+        
+        # output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
+        output = evaluate_sess_run_time(sess, input_image_tensor, output_tensor_name)
+    if to_print:
+        print_ten_prediction(output)
 
 def load_pb_file(pb_file_path, to_print=False):
     with tf.Graph().as_default():
@@ -146,43 +135,53 @@ def load_pb_file(pb_file_path, to_print=False):
             # 定義输出的tensor名稱
             output_tensor_name = sess.graph.get_tensor_by_name("final:0")
             
-            output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
+            
+            # output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
+            output = evaluate_sess_run_time(sess, input_image_tensor, output_tensor_name)
     if to_print:
         print_ten_prediction(output)
 
 def load_pb_produced_by_builder(builder_pb_dir, to_print=False):
     with tf.Session() as sess:
-        meta_graph_def = tf.saved_model.loader.load(sess, ['mnist_builder_pb'], builder_pb_dir)
+        tf.saved_model.loader.load(sess, ['mnist_builder_pb'], builder_pb_dir)
         sess.run(tf.tables_initializer())
         # sess.run(tf.global_variables_initializer())
 
         # for item in tf.get_default_graph().as_graph_def().node:
         #     print(item.name)
 
-        input_placeholder = sess.graph.get_tensor_by_name('input_node:0')
-        output_softmax = sess.graph.get_tensor_by_name("final:0")
+        input_image_tensor = sess.graph.get_tensor_by_name('input_node:0')
+        output_tensor_name = sess.graph.get_tensor_by_name("final:0")
 
-        output = sess.run(output_softmax, feed_dict={input_placeholder: mnist.test.images})
+        # output = sess.run(output_tensor_name, feed_dict={input_image_tensor: mnist.test.images})
+        output = evaluate_sess_run_time(sess, input_image_tensor, output_tensor_name)
     if to_print:
         print_ten_prediction(output)
 
+def evaluate_sess_run_time(sess, in_node, out_node):
+    # 跑完 mnist.test.images 要花的時間
+    start = time()
 
+    sess.run(out_node, feed_dict={in_node: mnist.test.images})
 
-
-
-
+    end = time()
+    print('花', end - start)
     
-def evaluate_run_time(ckpt_file, pb_file):
-    start = time()
-    load_ckpt_file(ckpt_file)
-    end = time()
-    print('ckpt檔花', end - start)
+def evaluate_run_time(ckpt_file, pb_file, builder_pb_dir):
+    # start = time()
+    # load_ckpt_file(ckpt_file)
+    # end = time()
+    # print('ckpt檔花', end - start)
+
+    # start = time()
+    # load_pb_file(pb_file)
+    # end = time()
+    # print('一般pb檔花', end - start)
 
     start = time()
-    load_pb_file(pb_file)
+    load_pb_produced_by_builder(builder_pb_dir)
     end = time()
-    print('pb檔花', end - start)
-
+    print('使用builder存的pb檔花', end - start)
 
 def print_ten_prediction(output):
     # for n in sample(range(10000), 10):
@@ -204,13 +203,14 @@ if __name__ == '__main__':
     
     # load_ckpt_file('model/model.ckpt', to_print=True)
     # load_pb_file('model_pb/test1.pb', to_print=True)
-    load_pb_produced_by_builder('model_pb_builder', to_print=True)
+    # load_pb_produced_by_builder('model_pb_builder', to_print=True)
 
 
+    # load_ckpt_file('model/model.ckpt')
+    # load_pb_file('model_pb/test1.pb')
+    load_pb_produced_by_builder('model_pb_builder')
 
     
-    
-    
-    # evaluate_run_time('model/model.ckpt', './model_pb/test1.pb')
+    # evaluate_run_time('model/model.ckpt', './model_pb/test1.pb', 'model_pb_builder')
 
     
