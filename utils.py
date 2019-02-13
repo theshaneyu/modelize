@@ -198,7 +198,9 @@ def print_ten_prediction(output):
 if __name__ == '__main__':
     # train()
 
-    # save_pb_with_freeze_graph('model/model.ckpt', 'model_pb/freeze_graph.pb')
+    input_ckpt_file = 'big_ckpt/inception_resnet_v2_2016_08_30.ckpt'
+    output_pb_file = 'big_pb/inception_resnet_v2_2016_08_30.pb'
+    save_pb_with_freeze_graph('model/model.ckpt', 'model_pb/freeze_graph.pb')
     # save_pb_with_builder('model/model.ckpt', 'model_pb_builder')
     
     # load_ckpt_file('model/model.ckpt', to_print=True)
@@ -208,7 +210,7 @@ if __name__ == '__main__':
 
     # load_ckpt_file('model/model.ckpt')
     # load_pb_file('model_pb/test1.pb')
-    load_pb_produced_by_builder('model_pb_builder')
+    # load_pb_produced_by_builder('model_pb_builder')
 
     
     # evaluate_run_time('model/model.ckpt', './model_pb/test1.pb', 'model_pb_builder')
